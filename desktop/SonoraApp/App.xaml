@@ -1,0 +1,12 @@
+<Application x:Class="SonoraApp.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="BgDark" Color="#0C0D0C" />
+        <SolidColorBrush x:Key="BgPanel" Color="#12130F" />
+        <SolidColorBrush x:Key="Accent" Color="#B6FF3C" />
+        <SolidColorBrush x:Key="TextMain" Color="#F4F5F1" />
+        <SolidColorBrush x:Key="TextDim" Color="#9A9C9A" />
+    </Application.Resources>
+</Application>

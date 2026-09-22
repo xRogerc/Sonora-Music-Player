@@ -1,0 +1,42 @@
+﻿
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+backend/.venv/
+venv/
+env/
+*.sqlite3
+*.db
+db.sqlite3
+
+# Builds regeneraveis
+build/
+dist/
+desktop/SonoraApp/bin/
+desktop/SonoraApp/obj/
+desktop/SonoraApp/pub/
+sonora_flutter/build/
+sonora_flutter/.dart_tool/
+sonora_flutter/android/.gradle/
+sonora_flutter/android/local.properties
+.gradle/
+*.iml
+
+# APKs e artefatos grandes
+*.apk
+*.aab
+
+# IDE / OS
+.idea/
+.vscode/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini
+
+# Dados locais
+SONORA.log
+sonora.log
+%LOCALAPPDATA%

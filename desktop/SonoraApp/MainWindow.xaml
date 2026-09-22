@@ -1,0 +1,35 @@
+﻿<Window x:Class="SonoraApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:webview="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="SONORA"
+        Width="1100"
+        Height="720"
+        MinWidth="860"
+        MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgDark}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="1">
+            <webview:WebView2 x:Name="WebView" />
+
+            <Border x:Name="LoadingOverlay" Background="#0C0D0C" Visibility="Visible">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="52" Height="52" CornerRadius="26" Background="{StaticResource Accent}"
+                            HorizontalAlignment="Center">
+                        <TextBlock Text="&#x266B;" Foreground="#0C0D0C" FontSize="28"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe UI Symbol" />
+                    </Border>
+                    <TextBlock x:Name="LoadingText" Text="Iniciando SONORA..."
+                               Foreground="{StaticResource TextDim}" FontSize="13"
+                               Margin="0,16,0,0" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
