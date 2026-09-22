@@ -1,4 +1,5 @@
 # 🎵 Sonora Player
+<img width="1919" height="1007" alt="image" src="https://github.com/user-attachments/assets/00e7f333-29e4-47db-aba5-5444d3083839" />
 
 O **Sonora** é um player de música moderno, minimalista e de código aberto desenvolvido para proporcionar uma experiência fluida de streaming de áudio. Com uma interface Dark Mode refinada e focada no usuário, o projeto foi construído para demonstrar habilidades avançadas de front-end, consumo de dados assíncronos e gerenciamento de estado.
 
