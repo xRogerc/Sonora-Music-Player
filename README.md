@@ -83,4 +83,4 @@ Antes de começar, você vai precisar ter instalado em sua máquina o [Node.js](
 Este projeto é distribuído sob a licença **GNU General Public License v3.0 (GPLv3)**. Isso garante que o código permaneça livre e aberto para a comunidade, proibindo que terceiros fechem o código ou vendam este software comercialmente. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ---
-Componente de portfólio desenvolvido por [Seu Nome](https://github.com) 🚀
+Componente de portfólio desenvolvido por Rogerc_ (https://github.com/xRogerc) 🚀
