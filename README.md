@@ -1,4 +1,6 @@
 # 🎵 SONORA — Music Player
+<img width="1919" height="1007" alt="image" src="https://github.com/user-attachments/assets/6bccfe29-10e0-425c-a5d7-975ef2a04f9b" />
+
 
 O **SONORA** é um player de música que integra buscas no **YouTube Music**, streaming de áudio e uma biblioteca local — tudo em um único aplicativo que roda em **Windows (desktop)**, **navegador (PWA)** e **smartphones (Android)**. O projeto demonstra arquitetura de pleno: backend **Django REST**, frontend web responsivo, launcher desktop nativo e app móvel Flutter com **Python embutido via Chaquopy**.
 
