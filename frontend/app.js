@@ -424,7 +424,6 @@ function homeSongRow(s, badge, icon) {
         <div class="track-title">${esc(s.title)}</div>
         <div class="track-sub">${s.artists ? esc(s.artists) : 'Artista'}</div>
       </div>
-      <button class="mini-btn" onclick="event.stopPropagation(); dbl(${''})" style="display:none">☰</button>
       <div class="track-sub" style="flex:0 0 auto;margin-left:8px;">${icon || ''}</div>
     </div>`;
 }
@@ -740,8 +739,12 @@ function removeFromQueue(i) {
       state.current = null;
       PLAYER.pause();
       PLAYER.removeAttribute('src');
-      bindNowPlaying();
-      loadRelated(null);
+      document.getElementById('nowTitle').textContent = 'Nenhuma música na fila';
+      document.getElementById('nowArtist').textContent = 'Faça uma busca para começar';
+      document.getElementById('cover').style.backgroundImage = '';
+      state.related = [];
+      state.relatedFor = null;
+      renderRelatedRail();
     }
   } else if (i < state.currentIndex) {
     state.currentIndex--;
@@ -1041,13 +1044,10 @@ async function loadRelated(song) {
 function renderRelatedRail() {
   const rail = document.getElementById('relatedRail');
   if (!rail) return;
-  const loadedFor = state.relatedFor;
-  const base = loadedFor ? (state.current && state.current.video_id) : null;
-  let match = null;
-  if (base) {
-    match = state.related.find((s) => s.video_id === base);
-  }
-  const context = match ? `${match.title} · ${match.artists || ''}` : 'Tocar uma música para ver sugestões';
+  const showingCurrent = state.relatedFor && state.current && state.current.video_id === state.relatedFor;
+  const context = showingCurrent
+    ? `${state.current.title} · ${state.current.artists || ''}`
+    : 'Tocar uma música para ver sugestões';
   if (!state.related.length) {
     rail.innerHTML = `
       <div class="rail-head">
@@ -1133,6 +1133,7 @@ function prevTrack() {
   playFromQueue(prev);
 }
 
+let playerListenersBound = false;
 function bindNowPlaying() {
   const playBtn = document.getElementById('playBtn');
   const playIcon = document.getElementById('playIcon');
@@ -1174,24 +1175,25 @@ function bindNowPlaying() {
     const pct = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     const time = pct * PLAYER.duration;
     PLAYER.currentTime = time;
-    seekFill.style.width = pct * 100 + '%';
-    seekKnob.style.left = pct * 100 + '%';
-    timeCurrent.textContent = fmtTime(time);
+    progressFill.style.width = pct * 100 + '%';
+    progressKnob.style.left = pct * 100 + '%';
+    document.getElementById('curTime').textContent = fmtTime(time);
   }
 
+  const onProgressMove = (ev) => {
+    if (ev.buttons === 0 && ev.pointerType === 'mouse') return;
+    seekFromX(ev.clientX);
+  };
   progressBar.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (!PLAYER.duration) return;
     progressBar.setPointerCapture(e.pointerId);
     seekFromX(e.clientX);
-    progressBar.addEventListener(
-      'pointermove',
-      (ev) => {
-        if (ev.buttons === 0 && ev.pointerType === 'mouse') return;
-        seekFromX(ev.clientX);
-      },
-      { passive: false }
-    );
+    progressBar.addEventListener('pointermove', onProgressMove, { passive: false });
+  });
+  progressBar.addEventListener('pointerup', (e) => {
+    progressBar.removeEventListener('pointermove', onProgressMove);
+    try { progressBar.releasePointerCapture(e.pointerId); } catch (_) {}
   });
   progressBar.addEventListener('click', (e) => {
     if (!PLAYER.duration) return;
@@ -1207,18 +1209,19 @@ function bindNowPlaying() {
     volumeFill.style.width = pct * 100 + '%';
   }
 
+  const onVolumeMove = (ev) => {
+    if (ev.buttons === 0 && ev.pointerType === 'mouse') return;
+    setVolumeFromX(ev.clientX);
+  };
   volumeBar.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     volumeBar.setPointerCapture(e.pointerId);
     setVolumeFromX(e.clientX);
-    volumeBar.addEventListener(
-      'pointermove',
-      (ev) => {
-        if (ev.buttons === 0 && ev.pointerType === 'mouse') return;
-        setVolumeFromX(ev.clientX);
-      },
-      { passive: false }
-    );
+    volumeBar.addEventListener('pointermove', onVolumeMove, { passive: false });
+  });
+  volumeBar.addEventListener('pointerup', (e) => {
+    volumeBar.removeEventListener('pointermove', onVolumeMove);
+    try { volumeBar.releasePointerCapture(e.pointerId); } catch (_) {}
   });
   volumeBar.addEventListener('click', (e) => {
     const rect = volumeBar.getBoundingClientRect();
@@ -1227,54 +1230,52 @@ function bindNowPlaying() {
     volumeFill.style.width = pct * 100 + '%';
   });
 
+  // PLAYER é um elemento persistente (fica fora do #app, que é recriado a
+  // cada renderApp()). Os listeners abaixo só podem ser anexados uma vez,
+  // senão um logout+login na mesma sessão duplica tudo (ex.: "ended"
+  // chamaria nextTrack() duas vezes por música). Por isso usam sempre
+  // document.getElementById(...) por dentro, em vez de guardar referência
+  // ao elemento de quando foram religados.
+  if (playerListenersBound) return;
+  playerListenersBound = true;
+
   PLAYER.addEventListener('play', () => {
     state.userPaused = false;
-    playIcon.innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+    document.getElementById('playIcon').innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
     document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('playing'));
   });
   PLAYER.addEventListener('playing', () => {
     state.userPaused = false;
     document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('playing'));
   });
-  PLAYER.addEventListener('waiting', () => {
-    if (state.userPaused) return;
-    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('buffering'));
-  });
-  PLAYER.addEventListener('stalled', () => {
-    if (state.userPaused || !state.current) return;
-    if (PLAYER.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
-      document.querySelectorAll('#visualizer span').forEach((s) => s.classList.remove('buffering'));
-      loadTrack(state.current);
-    }
-  });
   PLAYER.addEventListener('pause', () => {
-    playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    document.getElementById('playIcon').innerHTML = '<path d="M8 5v14l11-7z"/>';
     document.querySelectorAll('#visualizer span').forEach((s) => s.classList.remove('playing'));
   });
-  PLAYER.addEventListener('playing', () => {
-    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('playing'));
-  });
-  PLAYER.addEventListener('stalled', () => {
-    if (!state.current || state.userPaused) return;
-    if (!PLAYER.paused && PLAYER.currentTime > 0 && isFinite(PLAYER.currentTime)) {
-      PLAYER.currentTime = PLAYER.currentTime;
-    }
-  });
   PLAYER.addEventListener('waiting', () => {
     if (!state.current || state.userPaused) return;
+    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('buffering'));
     const retry = () => {
       if (state.current && !state.userPaused && PLAYER.paused && !PLAYER.ended && PLAYER.currentSrc) {
         PLAYER.play().catch((err) => console.error('Retomada automática falhou:', err));
       }
     };
-    if (PLAYER.currentTime === 0) setTimeout(retry, 1500);
-    else setTimeout(retry, 400);
+    setTimeout(retry, PLAYER.currentTime === 0 ? 1500 : 400);
+  });
+  PLAYER.addEventListener('stalled', () => {
+    if (state.userPaused || !state.current) return;
+    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.remove('buffering'));
+    if (PLAYER.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+      loadTrack(state.current);
+    }
   });
   PLAYER.addEventListener('timeupdate', () => {
     if (!PLAYER.duration) return;
     const pct = (PLAYER.currentTime / PLAYER.duration) * 100;
-    progressFill.style.width = pct + '%';
-    progressKnob.style.left = pct + '%';
+    const fill = document.getElementById('progressFill');
+    const knob = document.getElementById('progressKnob');
+    if (fill) fill.style.width = pct + '%';
+    if (knob) knob.style.left = pct + '%';
     document.getElementById('curTime').textContent = fmtTime(PLAYER.currentTime);
     document.getElementById('durTime').textContent = fmtTime(PLAYER.duration);
   });

@@ -54,16 +54,14 @@ namespace SonoraApp
         {
             LoadingText.Text = "Iniciando servidor interno...";
 
-            string backendDir = await Task.Run(ResolveBackendDir);
-            if (backendDir == string.Empty)
-            {
-                Fail("Pasta do backend nao encontrada.");
-                return;
-            }
-
             if (!ServerUp())
             {
-                _server = SpawnBackend(backendDir);
+                _server = SpawnBackend();
+                if (_server is null)
+                {
+                    Fail("servidor\\sonora-server.exe nao encontrado. (rode backend\\build_server.bat)");
+                    return;
+                }
                 if (!await WaitForServerAsync())
                 {
                     Fail("Servidor interno nao respondeu. Veja %LOCALAPPDATA%\\SONORA\\sonora.log");
@@ -93,40 +91,20 @@ namespace SonoraApp
             LoadingOverlay.Visibility = Visibility.Collapsed;
         }
 
-        private static string ResolveBackendDir()
+        private Process? SpawnBackend()
         {
-            string cur = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
-            for (int i = 0; i < 8; i++)
-            {
-                foreach (string cand in new[] { Path.Combine(cur, "backend"), cur })
-                {
-                    if (Directory.Exists(Path.Combine(cand, "config")) &&
-                        File.Exists(Path.Combine(cand, "desktop_server.py")))
-                        return Path.GetFullPath(cand);
-                }
-                string? parent = Path.GetDirectoryName(cur);
-                if (parent is null || parent == cur)
-                    break;
-                cur = parent;
-            }
-            return string.Empty;
-        }
-
-        private Process? SpawnBackend(string backendDir)
-        {
-            string python = ResolvePython(backendDir);
-            if (python == string.Empty)
+            string serverExe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server", "sonora-server.exe");
+            if (!File.Exists(serverExe))
                 return null;
 
-            string script = Path.Combine(backendDir, "desktop_server.py");
             var psi = new ProcessStartInfo
             {
-                FileName = python,
-                Arguments = $"\"{script}\"",
-                WorkingDirectory = backendDir,
+                FileName = serverExe,
+                WorkingDirectory = Path.GetDirectoryName(serverExe)!,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            psi.Environment["SONORA_FRONTEND"] = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "frontend");
             try
             {
                 return Process.Start(psi);
@@ -136,19 +114,6 @@ namespace SonoraApp
                 Fail("Falha ao iniciar servidor: " + ex.Message);
                 return null;
             }
-        }
-
-        private static string ResolvePython(string backendDir)
-        {
-            string[] candidates =
-            {
-                Path.Combine(backendDir, ".venv", "Scripts", "pythonw.exe"),
-                Path.Combine(backendDir, ".venv", "Scripts", "python.exe"),
-            };
-            foreach (string c in candidates)
-                if (File.Exists(c))
-                    return c;
-            return string.Empty;
         }
 
         private bool ServerUp()

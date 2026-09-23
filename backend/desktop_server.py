@@ -2,7 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))) / 'SONORA'
 DB_PATH_DEFAULT = str(DATA_DIR / 'sonora.db')
 LOG_PATH = str(DATA_DIR / 'sonora.log')
@@ -11,6 +10,23 @@ LOG_PATH = str(DATA_DIR / 'sonora.log')
 def _traceback():
     import traceback
     return traceback.format_exc()
+
+
+def find_frontend_dir():
+    env = os.environ.get('SONORA_FRONTEND', '').strip()
+    if env:
+        candidate = Path(env)
+        if (candidate / 'index.html').is_file():
+            return str(candidate)
+    if getattr(sys, 'frozen', False):
+        candidate = Path(sys._MEIPASS) / 'frontend'
+        if (candidate / 'index.html').is_file():
+            return str(candidate)
+    here = Path(__file__).resolve().parent
+    for candidate in (here.parent.parent / 'frontend', here.parent / 'frontend'):
+        if (candidate / 'index.html').is_file():
+            return str(candidate)
+    raise RuntimeError('frontend nao encontrado')
 
 
 def main():
@@ -25,18 +41,7 @@ def main():
         os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
         os.environ['DB_PATH'] = DB_PATH_DEFAULT
 
-        candidates = [
-            Path(os.environ.get('SONORA_FRONTEND', '')) or None,
-            HERE.parent.parent / 'frontend',
-            HERE.parent / 'frontend',
-        ]
-        frontend_dir = None
-        for c in candidates:
-            if c is not None and (c / 'index.html').is_file():
-                frontend_dir = str(c)
-                break
-        if not frontend_dir:
-            raise RuntimeError('frontend nao encontrado')
+        frontend_dir = find_frontend_dir()
         os.environ['SONORA_FRONTEND'] = frontend_dir
 
         import config.settings

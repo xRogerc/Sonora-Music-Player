@@ -22,9 +22,9 @@ O **SONORA** é um player de música que integra buscas no **YouTube Music**, st
 └───────────────┴──────────────────┴──────────────┴──────────────────────┘
 ```
 
-* **`backend/`** — Servidor **Django + Django REST Framework**. Faz a busca no **YouTube Music** (via `ytmusicapi`), extrai/streaming de mídia (via `yt-dlp`) e serve a API em `http://127.0.0.1:8010/`. O banco é **SQLite** (`sonora.db`) gravado em `%LOCALAPPDATA%\SONORA\`.
+* **`backend/`** — Servidor **Django + Django REST Framework**. Faz a busca no **YouTube Music** (via `ytmusicapi`), extrai/streaming de mídia (via `yt-dlp`) e serve a API em `http://127.0.0.1:8010/`. O banco é **SQLite** (`sonora.db`) gravado em `%LOCALAPPDATA%\SONORA\`. No desktop, é empacotado como um exe standalone via PyInstaller (`backend\build_server.bat` → `dist\sonora-server.exe`), sem depender de Python na máquina de destino.
 * **`frontend/`** — Aplicação web **PWA** (HTML/CSS/JS puros). Contém `index.html`, `app.js`, `style.css`, service worker (`sw.js`, funciona offline) e manifesto. É servida pelo backend e/ou nginx.
-* **`desktop/`** — Cliente nativo **WPF (C# / .NET 8)**, o `SONORA.exe`. Inicia o servidor Django em segundo plano, exibe a webapp e serve como launcher. `SONORA.bat` e `SONORA.spec` (PyInstaller) acompanham.
+* **`desktop/`** — Cliente nativo **WPF (C# / .NET 8)**, o `SONORA.exe`. Inicia o servidor Django empacotado (`server\sonora-server.exe`, via PyInstaller) em segundo plano, exibe a webapp via WebView2 e serve como launcher. `SONORA.bat` e `SONORA.spec` (PyInstaller) acompanham.
 * **`sonora_flutter/`** — App **Flutter para Android** com **Chaquopy** (Python 3.12 embutido no Gradle). Roda o mesmo Django/DRF dentro do APK e exibe a interface via WebView — sem precisar de servidor externo.
 * **`SONORA.bat`** — Atalho de inicialização do desktop: sobe o backend (`backend/desktop_main.py`) e abre a interface.
 
@@ -65,23 +65,23 @@ MusicPlayer/
 │   ├── core/               # app Django (API, modelos, views)
 │   ├── desktop_main.py     # entry point do launcher desktop (porta 8010)
 │   ├── desktop_server.py   # bootstrap do Django (migra + runserver)
+│   ├── build_server.bat    # empacota desktop_server.py (PyInstaller → sonora-server.exe)
+│   ├── sonora-server.spec  # spec PyInstaller do servidor standalone
 │   ├── manage.py
-│   ├── requirements.txt
-│   └── .venv/              # ambiente virtual local (pythonw p/ launcher)
+│   └── requirements.txt
 ├── frontend/               # PWA (HTML/CSS/JS) — index.html, app.js,
 │                           # styles.css, sw.js, manifest, nginx.dockerfile
 ├── desktop/
 │   └── SonoraApp/          # Cliente WPF C# .NET 8 (AssemblyName=SONORA)
 │       ├── MainWindow.xaml # WebView2 embutido
 │       ├── SonoraApp.csproj
-│       └── pub/sonora/     # publish win-x64 self-contained single-file
+│       └── bin/.../publish # SONORA.exe + server\sonora-server.exe + frontend
 ├── sonora_flutter/         # App Flutter (Android) com Chaquopy
 │   ├── lib/                # código Dart
 │   ├── android/            # Gradle + Chaquopy (Python 3.12 embutido)
 │   └── pubspec.yaml
-├── android/                # protótipo antigo de Android nativo (Java) — legado
-├── SONORA.bat              # launcher: pythonw backend\desktop_main.py
-├── SONORA.spec             # spec PyInstaller (entry=desktop_main.py, UPX)
+├── SONORA.bat              # launcher dev: pythonw backend\desktop_main.py
+├── SONORA.spec             # spec PyInstaller do launcher (entry=desktop_main.py)
 └── SONORA.ico              # ícone
 ```
 
@@ -107,12 +107,28 @@ python manage.py runserver 127.0.0.1:8010
 API em `http://127.0.0.1:8010/` e frontend em `http://127.0.0.1:8010/`.
 
 ### 2. Desktop (Windows)
-Basta `SONORA.bat` — inicia o servidor e abre a interface. Para gerar o exe:
+Para desenvolvimento, `SONORA.bat` sobe o backend Python e abre a interface.
+
+Para gerar o **executável distribuível** (funciona sem Python instalado na
+máquina de destino), o backend é empacotado num exe standalone:
+
 ```bash
+# 1. Empacota o servidor Django em um único exe (usa .venv local ou python global)
+backend\build_server.bat
+# gera backend\dist\sonora-server.exe
+
+# 2. Publica o app WPF (copia sonora-server.exe e frontend/ ao lado do SONORA.exe)
 cd desktop\SonoraApp
 dotnet publish -c Release -r win-x64 --self-contained true
-# saída em desktop\SonoraApp\pub\sonora\
+# saída em desktop\SonoraApp\bin\Release\net8.0-windows\win-x64\publish\
+#   SONORA.exe
+#   server\sonora-server.exe
+#   frontend\...
 ```
+
+O `SONORA.exe` inicia o `server\sonora-server.exe` (PyInstaller) em segundo
+plano e abre a interface via WebView2 — sem depender de Python nem de venv na
+máquina do usuário final.
 
 ### 3. App Android (Flutter + Chaquopy)
 ```bash
