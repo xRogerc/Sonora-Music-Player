@@ -20,7 +20,15 @@ from .serializers import (
     SongInputSerializer,
     SongSerializer,
 )
-from .youtube import get_lyrics_for, get_stream_info, related_songs, search_songs
+from .youtube import (
+    genre_playlist_sections,
+    get_lyrics_for,
+    get_stream_info,
+    playlist_tracks,
+    related_songs,
+    search_songs,
+    trending_songs,
+)
 
 
 def upsert_song(data):
@@ -187,22 +195,28 @@ class HomeStatsView(APIView):
         from core.models import Song, Playlist, HistoryEntry
 
         user = request.user
-        result = {'em_alta': [], 'mais_ouvidas': [], 'playlists': []}
+        result = {'em_alta': [], 'mais_ouvidas': [], 'estilos': []}
 
-        seen = set()
-        for h in (
-            HistoryEntry.objects.filter(user=user)
-            .select_related('song')
-            .order_by('-played_at')[:20]
-        ):
-            if h.song.video_id in seen:
-                continue
-            seen.add(h.song.video_id)
-            result['em_alta'].append(
-                SongSerializer(h.song).data
-            )
-            if len(result['em_alta']) >= 10:
-                break
+        try:
+            result['em_alta'] = trending_songs(10)
+        except Exception:
+            result['em_alta'] = []
+
+        if not result['em_alta']:
+            seen = set()
+            for h in (
+                HistoryEntry.objects.filter(user=user)
+                .select_related('song')
+                .order_by('-played_at')[:20]
+            ):
+                if h.song.video_id in seen:
+                    continue
+                seen.add(h.song.video_id)
+                result['em_alta'].append(
+                    SongSerializer(h.song).data
+                )
+                if len(result['em_alta']) >= 10:
+                    break
 
         counts = Counter(
             HistoryEntry.objects.filter(user=user).values_list('song_id', flat=True)
@@ -216,23 +230,23 @@ class HomeStatsView(APIView):
             if len(result['mais_ouvidas']) >= 10:
                 break
 
-        for p in (
-            Playlist.objects.filter(user=user)
-            .prefetch_related('songs__song')
-            .order_by('-created_at')
-        ):
-            result['playlists'].append(
-                {
-                    'id': p.id,
-                    'name': p.name,
-                    'description': p.description,
-                    'songs_count': p.songs.count(),
-                }
-            )
-        result['playlists'].sort(key=lambda x: x['songs_count'], reverse=True)
-        result['playlists'] = result['playlists'][:10]
+        try:
+            result['estilos'] = genre_playlist_sections(6, 4)
+        except Exception:
+            result['estilos'] = []
 
         return Response(result)
+
+
+class YTPlaylistDetailView(APIView):
+    def get(self, request, browse_id):
+        try:
+            data = playlist_tracks(browse_id, limit=60)
+        except Exception:
+            return Response({'detail': 'Playlist não encontrada'}, status=404)
+        if not data.get('tracks'):
+            return Response({'detail': 'Playlist não encontrada'}, status=404)
+        return Response(data)
 
 
 class PlaylistListView(APIView):

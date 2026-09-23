@@ -11,6 +11,7 @@ urlpatterns = [
     path('songs/<str:video_id>/stream/', views.SongStreamView.as_view()),
     path('songs/<str:video_id>/related/', views.SongRelatedView.as_view()),
     path('songs/<str:video_id>/lyrics/', views.SongLyricsView.as_view()),
+    path('yt/playlists/<str:browse_id>/', views.YTPlaylistDetailView.as_view()),
     path('favorites/', views.FavoriteListView.as_view()),
     path('favorites/create/', views.FavoriteCreateView.as_view()),
     path('favorites/<int:pk>/', views.FavoriteDeleteView.as_view()),

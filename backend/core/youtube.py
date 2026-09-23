@@ -1,4 +1,5 @@
 import re
+import time
 
 import yt_dlp
 from ytmusicapi import YTMusic
@@ -126,4 +127,129 @@ def get_stream_info(video_id):
         'headers': headers,
         'title': info.get('title', ''),
         'duration': info.get('duration', 0),
+    }
+
+
+_home_cache = {}
+
+
+def _cached(ttl=600):
+    def decorator(fn):
+        def wrapper(*args, **kwargs):
+            key = (fn.__name__, args, tuple(sorted(kwargs.items())))
+            hit = _home_cache.get(key)
+            now = time.time()
+            if hit and now - hit[1] < ttl:
+                return hit[0]
+            value = fn(*args, **kwargs)
+            _home_cache[key] = (value, now)
+            return value
+        return wrapper
+    return decorator
+
+
+def _normalize_yt_song(item):
+    video_id = item.get('videoId') or item.get('id')
+    if not video_id:
+        return None
+    artists = ', '.join(
+        artist.get('name', '')
+        for artist in (item.get('artists') or [])
+        if artist.get('name')
+    )
+    album_obj = item.get('album')
+    if isinstance(album_obj, dict):
+        album = album_obj.get('name', '')
+    elif isinstance(album_obj, str):
+        album = album_obj
+    else:
+        album = ''
+    thumbs = item.get('thumbnails') or (item.get('thumbnail') or []) or []
+    thumb_url = thumbs[-1].get('url', '') if thumbs else ''
+    return {
+        'video_id': video_id,
+        'title': item.get('title', ''),
+        'artists': artists,
+        'album': album,
+        'duration': item.get('duration_seconds') or _parse_duration(item.get('length')),
+        'thumbnails': [_big_thumbnail(thumb.get('url', '')) for thumb in thumbs],
+        'thumbnail_url': _big_thumbnail(thumb_url),
+    }
+
+
+@_cached(ttl=600)
+def trending_songs(limit=10):
+    charts = get_client().get_charts(country='BR')
+    videos = charts.get('videos') or []
+    playlist_id = None
+    for item in videos:
+        title = (item.get('title') or '').lower()
+        pid = item.get('playlistId') or item.get('browseId') or item.get('id')
+        if pid and 'trending' in title:
+            playlist_id = pid
+            break
+    if not playlist_id and videos:
+        item = videos[0]
+        playlist_id = item.get('playlistId') or item.get('browseId') or item.get('id')
+    if not playlist_id:
+        return []
+    data = playlist_tracks(playlist_id, limit=limit)
+    return data.get('tracks', [])
+
+
+@_cached(ttl=600)
+def genre_playlist_sections(max_styles=6, per_style=4):
+    categories = get_client().get_mood_categories() or {}
+    sections = []
+    for group in categories.values():
+        if len(sections) >= max_styles:
+            break
+        for category in group or []:
+            if len(sections) >= max_styles:
+                break
+            style = category.get('title', '')
+            params = category.get('params') or category.get('id')
+            if not style or not params:
+                continue
+            try:
+                data = get_client().get_mood_playlists(params)
+            except Exception:
+                continue
+            playlists = []
+            for item in data or []:
+                pid = item.get('playlistId') or item.get('browseId') or item.get('id')
+                if not pid:
+                    continue
+                thumbs = item.get('thumbnails') or []
+                thumb_url = thumbs[-1].get('url', '') if thumbs else ''
+                playlists.append({
+                    'playlist_id': pid,
+                    'title': item.get('title', ''),
+                    'count': item.get('trackCount') or item.get('videoCount') or 0,
+                    'thumbnail_url': _big_thumbnail(thumb_url),
+                })
+                if len(playlists) >= per_style:
+                    break
+            if playlists:
+                sections.append({'estilo': style, 'playlists': playlists})
+    return sections
+
+
+@_cached(ttl=900)
+def playlist_tracks(browse_id, limit=60):
+    data = get_client().get_playlist(browse_id)
+    tracks = []
+    for item in data.get('tracks') or []:
+        song = _normalize_yt_song(item)
+        if song:
+            tracks.append(song)
+        if len(tracks) >= limit:
+            break
+    thumbs = data.get('thumbnails') or []
+    thumb_url = thumbs[-1].get('url', '') if thumbs else ''
+    return {
+        'name': data.get('title', 'Playlist'),
+        'description': data.get('description', ''),
+        'thumbnail_url': _big_thumbnail(thumb_url),
+        'tracks': tracks,
     }

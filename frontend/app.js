@@ -197,7 +197,10 @@ function renderApp() {
           <svg viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="2"/></svg>
         </div>
         <div class="side-icons">
-          <div class="icon-btn active" data-view="search" title="Buscar">
+          <div class="icon-btn active" data-view="home" title="Início">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3V10.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 21V9.6L12 3l7 6.6V21" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="icon-btn" data-view="search" title="Buscar">
             <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </div>
           <div class="icon-btn" data-view="favorites" title="Favoritos">
@@ -396,7 +399,7 @@ function setView(view) {
   if (view === 'home') {
     queueTitle.textContent = 'Início';
     headActions.innerHTML = '<button class="head-btn" onclick="loadHome()">↻ Atualizar</button>';
-    renderHome();
+    loadHome();
   } else if (view === 'favorites') {
     queueTitle.textContent = 'Favoritos';
     headActions.innerHTML = '';
@@ -417,29 +420,48 @@ function setView(view) {
 
 function homeSongRow(s, badge, icon) {
   return `
-    <div class="track-row" onclick="playHomeCard('${esc(s.video_id)}')" style="cursor:pointer">
-      <div class="track-pos" style="flex:0 0 34px;text-align:center;">${badge}</div>
-      ${s.thumbnail_url ? `<img class="track-thumb" src="${esc(s.thumbnail_url)}" alt="" loading="lazy">` : ''}
+    <div class="track-row home-row" onclick="playHomeCard('${esc(s.video_id)}')" title="${esc(s.title + ' · ' + (s.artists || ''))}">
+      <div class="track-pos">${badge}</div>
+      ${s.thumbnail_url
+        ? `<img class="track-thumb" src="${esc(s.thumbnail_url)}" alt="" loading="lazy">`
+        : '<span class="track-thumb placeholder"></span>'}
       <div class="track-meta">
-        <div class="track-title">${esc(s.title)}</div>
-        <div class="track-sub">${s.artists ? esc(s.artists) : 'Artista'}</div>
+        <div class="home-song">${esc(s.title)}</div>
+        <div class="home-artist">${s.artists ? esc(s.artists) : 'Artista'}</div>
       </div>
-      <div class="track-sub" style="flex:0 0 auto;margin-left:8px;">${icon || ''}</div>
+      <span class="home-badge">${icon || ''}</span>
     </div>`;
 }
 
-function sectionBlock(title, emoji, rows, emptyMsg) {
+function sectionBlock(title, emoji, inner, emptyMsg) {
   return `
     <div class="home-section">
       <h3 class="home-title">${title} ${emoji}</h3>
-      ${rows.length ? `<div class="track-list">${rows}</div>` : `<p class="empty-queue">${emptyMsg}</p>`}
+      ${inner || `<p class="empty-queue">${emptyMsg}</p>`}
+    </div>`;
+}
+
+function styleSection(estilo) {
+  const cards = (estilo.playlists || []).map((p) => `
+    <div class="pl-card" onclick="playYtPlaylist('${esc(p.playlist_id)}')" title="${esc(p.title)}">
+      ${p.thumbnail_url
+        ? `<img class="pl-thumb" src="${esc(p.thumbnail_url)}" alt="" loading="lazy">`
+        : '<div class="pl-thumb placeholder"></div>'}
+      <div class="pl-name">${esc(p.title)}</div>
+      <div class="pl-sub">${p.count ? p.count + ' músicas' : ''}</div>
+    </div>`).join('');
+  return `
+    <div class="home-section">
+      <h3 class="home-title">${esc(estilo.estilo)}</h3>
+      <div class="pl-row">${cards || '<p class="empty-queue">Sem playlists.</p>'}</div>
     </div>`;
 }
 
 async function loadHome() {
   const list = document.getElementById('queueList');
   if (!list) return;
-  list.innerHTML = '<div class="empty-queue">Carregando... </div>';
+  list.classList.add('home-feed');
+  list.innerHTML = '<div class="empty-queue">Carregando...</div>';
   try {
     const data = await api('/home/');
     state.home = data;
@@ -453,34 +475,47 @@ async function loadHome() {
 function renderHome() {
   const list = document.getElementById('queueList');
   if (!list) return;
-  const h = state.home || { em_alta: [], mais_ouvidas: [], playlists: [] };
-  const trending = (h.em_alta || []).map((s, i) => homeSongRow(s, i + 1, '🔥')).join('');
-  const frequent = (h.mais_ouvidas || []).map((s, i) => homeSongRow(s, i + 1, '🎧')).join('');
-  const playlists = (h.playlists || []).map(
-    (p, i) => `
-      <div class="track-row" onclick="openPlaylist(${p.id})" style="cursor:pointer">
-        <div class="track-pos" style="flex:0 0 34px;text-align:center;">${i + 1}</div>
-        <div class="track-meta">
-          <div class="track-title">${esc(p.name)}</div>
-          <div class="track-sub">${(p.songs_count || 0)} músicas</div>
-        </div>
-        <button class="mini-btn" style="pointer-events:none;opacity:0">☰</button>
-        <div class="track-sub" style="flex:0 0 auto;">📚</div>
-      </div>`
-  ).join('');
+  list.classList.add('home-feed');
+  const h = state.home || { em_alta: [], mais_ouvidas: [], estilos: [] };
+  const trendingRows = (h.em_alta || []).map((s, i) => homeSongRow(s, i + 1, '🔥')).join('');
+  const frequentRows = (h.mais_ouvidas || []).map((s, i) => homeSongRow(s, i + 1, '🎧')).join('');
+  const styleBlocks = (h.estilos || []).map(styleSection).join('');
   list.innerHTML =
-    sectionBlock('Em alta', '🔥', trending, 'Ouça algo agora!') +
-    sectionBlock('Mais ouvidas', '🎧', frequent, 'Nada ainda.') +
-    sectionBlock('Playlists populares', '📚', playlists, 'Crie uma playlist!');
+    sectionBlock('Em alta', '🔥', trendingRows ? `<div class="track-list">${trendingRows}</div>` : '', 'Ouça algo agora!') +
+    sectionBlock('Mais ouvidas', '🎧', frequentRows ? `<div class="track-list">${frequentRows}</div>` : '', 'Nada ainda.') +
+    styleBlocks;
 }
 
 function playHomeCard(videoId) {
   const all = [
-    ...(state.home && state.home.em_alta || []),
-    ...(state.home && state.home.mais_ouvidas || []),
+    ...((state.home && state.home.em_alta) || []),
+    ...((state.home && state.home.mais_ouvidas) || []),
   ];
   const s = all.find((x) => x.video_id === videoId);
-  if (s) loadTrack(s);
+  if (s) {
+    loadTrack(s);
+  } else {
+    toast('Música não encontrada');
+  }
+}
+
+async function playYtPlaylist(playlistId) {
+  try {
+    const data = await api(`/yt/playlists/${encodeURIComponent(playlistId)}/`);
+    if (!data.tracks || !data.tracks.length) {
+      toast('Playlist vazia ou indisponível');
+      return;
+    }
+    state.queue = data.tracks;
+    state.queueMode = 'queue';
+    state.currentIndex = -1;
+    renderQueue();
+    toast(`Tocando "${data.name}"`);
+    playFromQueue(0);
+  } catch (err) {
+    console.error(err);
+    toast('Não deu pra carregar a playlist');
+  }
 }
 
 async function search(query) {
@@ -612,9 +647,12 @@ function renderQueue() {
   const queueList = document.getElementById('queueList');
 
   if (state.view === 'playlists' && !state.playlistDetail) {
+    queueList.classList.remove('home-feed');
     renderQueueTabs();
     return renderPlaylists();
   }
+
+  queueList.classList.remove('home-feed');
 
   const queueMode = state.queueMode === 'queue' && state.queue.length > 0;
   renderQueueTabs(queueMode);
@@ -631,6 +669,11 @@ function renderQueue() {
     }
     queueList.innerHTML = state.queue.map((song, i) => queueRow(song, i)).join('');
     updateStats();
+    return;
+  }
+
+  if (state.view === 'home') {
+    renderHome();
     return;
   }
 
