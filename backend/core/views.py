@@ -235,9 +235,6 @@ class HomeStatsView(APIView):
         return Response(result)
 
 
-class FavoriteDeleteViewEx(APIView):
-
-
 class PlaylistListView(APIView):
     def get(self, request):
         playlists = Playlist.objects.filter(user=request.user)
