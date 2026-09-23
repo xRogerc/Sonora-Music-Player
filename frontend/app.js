@@ -419,8 +419,9 @@ function setView(view) {
 }
 
 function homeSongRow(s, badge, icon) {
+  const active = state.current && s.video_id === state.current.video_id ? ' active' : '';
   return `
-    <div class="track-row home-row" onclick="playHomeCard('${esc(s.video_id)}')" title="${esc(s.title + ' · ' + (s.artists || ''))}">
+    <div class="track-row home-row${active}" onclick="playHomeCard('${esc(s.video_id)}')" title="${esc(s.title + ' · ' + (s.artists || ''))}">
       <div class="track-pos">${badge}</div>
       ${s.thumbnail_url
         ? `<img class="track-thumb" src="${esc(s.thumbnail_url)}" alt="" loading="lazy">`
@@ -491,12 +492,13 @@ function playHomeCard(videoId) {
     ...((state.home && state.home.em_alta) || []),
     ...((state.home && state.home.mais_ouvidas) || []),
   ];
-  const s = all.find((x) => x.video_id === videoId);
-  if (s) {
-    loadTrack(s);
-  } else {
+  const idx = all.findIndex((x) => x.video_id === videoId);
+  if (idx < 0) {
     toast('Música não encontrada');
+    return;
   }
+  state.queue = all;
+  playFromQueue(idx);
 }
 
 async function playYtPlaylist(playlistId) {
@@ -1135,8 +1137,6 @@ function playSimilar(index) {
 }
 
 function togglePlay() {
-  const items = activeQueue();
-  if (!items.length) return;
   if (PLAYER.currentSrc && state.current) {
     if (PLAYER.paused || PLAYER.ended) {
       state.userPaused = false;
@@ -1147,6 +1147,8 @@ function togglePlay() {
     }
     return;
   }
+  const items = activeQueue();
+  if (!items.length) return;
   playIndex(0);
 }
 
