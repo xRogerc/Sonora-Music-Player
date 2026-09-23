@@ -2,7 +2,7 @@
 <img width="1919" height="1007" alt="image" src="https://github.com/user-attachments/assets/6bccfe29-10e0-425c-a5d7-975ef2a04f9b" />
 
 
-O **SONORA** é um player de música que integra buscas no **YouTube Music**, streaming de áudio e uma biblioteca local — tudo em um único aplicativo que roda em **Windows (desktop)**, **navegador (PWA)** e **smartphones (Android)**. O projeto demonstra arquitetura de pleno: backend **Django REST**, frontend web responsivo, launcher desktop nativo e app móvel Flutter com **Python embutido via Chaquopy**.
+O **SONORA** é um player de música que integra buscas no **YouTube Music**, streaming de áudio e uma biblioteca local — tudo em um único aplicativo que roda em **Windows (desktop)**, **navegador (PWA)** e **smartphones (Android)**. O projeto demonstra arquitetura completa: backend **Django REST**, frontend web responsivo, launcher desktop nativo e app móvel Flutter com **Python embutido via Chaquopy**.
 
 
 ---
@@ -26,7 +26,7 @@ O **SONORA** é um player de música que integra buscas no **YouTube Music**, st
 * **`frontend/`** — Aplicação web **PWA** (HTML/CSS/JS puros). Contém `index.html`, `app.js`, `style.css`, service worker (`sw.js`, funciona offline) e manifesto. É servida pelo backend e/ou nginx.
 * **`desktop/`** — Cliente nativo **WPF (C# / .NET 8)**, o `SONORA.exe`. Inicia o servidor Django empacotado (`server\sonora-server.exe`, via PyInstaller) em segundo plano, exibe a webapp via WebView2 e serve como launcher. `SONORA.bat` e `SONORA.spec` (PyInstaller) acompanham.
 * **`sonora_flutter/`** — App **Flutter para Android** com **Chaquopy** (Python 3.12 embutido no Gradle). Roda o mesmo Django/DRF dentro do APK e exibe a interface via WebView — sem precisar de servidor externo.
-* **`SONORA.bat`** — Atalho de inicialização do desktop: sobe o backend (`backend/desktop_main.py`) e abre a interface.
+* **`SONORA.bat`** — Atalho de desenvolvimento: sobe o backend via Python do `backend\.venv` (`backend\desktop_main.py`) e abre a interface. Para o executável distribuível, use o fluxo do passo 2 abaixo.
 
 
 ---
@@ -80,7 +80,7 @@ MusicPlayer/
 │   ├── lib/                # código Dart
 │   ├── android/            # Gradle + Chaquopy (Python 3.12 embutido)
 │   └── pubspec.yaml
-├── SONORA.bat              # launcher dev: pythonw backend\desktop_main.py
+├── SONORA.bat              # launcher dev (usa backend\.venv): pythonw backend\desktop_main.py
 ├── SONORA.spec             # spec PyInstaller do launcher (entry=desktop_main.py)
 └── SONORA.ico              # ícone
 ```
@@ -107,17 +107,25 @@ python manage.py runserver 127.0.0.1:8010
 API em `http://127.0.0.1:8010/` e frontend em `http://127.0.0.1:8010/`.
 
 ### 2. Desktop (Windows)
-Para desenvolvimento, `SONORA.bat` sobe o backend Python e abre a interface.
+Para desenvolvimento, `SONORA.bat` usa o Python do `backend\.venv` (criado no
+passo 1) para subir o backend e abrir a interface.
 
 Para gerar o **executável distribuível** (funciona sem Python instalado na
-máquina de destino), o backend é empacotado num exe standalone:
+máquina de destino), o backend é empacotado num exe standalone. O
+`build_server.bat` reusa o `backend\.venv` (ou um python global com as
+dependências do `requirements.txt` já instaladas):
 
 ```bash
-# 1. Empacota o servidor Django em um único exe (usa .venv local ou python global)
+# 1. (opcional, se ainda não tiver a .venv do passo anterior) cria e instala o backend
+cd backend
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 2. Empacota o servidor Django em um único exe (instala PyInstaller se preciso)
 backend\build_server.bat
 # gera backend\dist\sonora-server.exe
 
-# 2. Publica o app WPF (copia sonora-server.exe e frontend/ ao lado do SONORA.exe)
+# 3. Publica o app WPF (copia sonora-server.exe e frontend/ ao lado do SONORA.exe)
 cd desktop\SonoraApp
 dotnet publish -c Release -r win-x64 --self-contained true
 # saída em desktop\SonoraApp\bin\Release\net8.0-windows\win-x64\publish\
