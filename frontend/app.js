@@ -10,7 +10,7 @@ if (window.SonoraBridge) {
 const state = {
   token: localStorage.getItem('mp_token'),
   username: localStorage.getItem('mp_username') || '',
-  view: 'search',
+  view: 'home',
   query: '',
   results: [],
   favorites: [],
@@ -393,7 +393,11 @@ function setView(view) {
   const queueTitle = document.getElementById('queueTitle');
   const headActions = document.getElementById('headActions');
 
-  if (view === 'favorites') {
+  if (view === 'home') {
+    queueTitle.textContent = 'Início';
+    headActions.innerHTML = '<button class="head-btn" onclick="loadHome()">↻ Atualizar</button>';
+    renderHome();
+  } else if (view === 'favorites') {
     queueTitle.textContent = 'Favoritos';
     headActions.innerHTML = '';
     loadFavorites();
@@ -409,6 +413,75 @@ function setView(view) {
     renderQueue();
   }
   updateStats();
+}
+
+function homeSongRow(s, badge, icon) {
+  return `
+    <div class="track-row" onclick="playHomeCard('${esc(s.video_id)}')" style="cursor:pointer">
+      <div class="track-pos" style="flex:0 0 34px;text-align:center;">${badge}</div>
+      ${s.thumbnail_url ? `<img class="track-thumb" src="${esc(s.thumbnail_url)}" alt="" loading="lazy">` : ''}
+      <div class="track-meta">
+        <div class="track-title">${esc(s.title)}</div>
+        <div class="track-sub">${s.artists ? esc(s.artists) : 'Artista'}</div>
+      </div>
+      <button class="mini-btn" onclick="event.stopPropagation(); dbl(${''})" style="display:none">☰</button>
+      <div class="track-sub" style="flex:0 0 auto;margin-left:8px;">${icon || ''}</div>
+    </div>`;
+}
+
+function sectionBlock(title, emoji, rows, emptyMsg) {
+  return `
+    <div class="home-section">
+      <h3 class="home-title">${title} ${emoji}</h3>
+      ${rows.length ? `<div class="track-list">${rows}</div>` : `<p class="empty-queue">${emptyMsg}</p>`}
+    </div>`;
+}
+
+async function loadHome() {
+  const list = document.getElementById('queueList');
+  if (!list) return;
+  list.innerHTML = '<div class="empty-queue">Carregando... </div>';
+  try {
+    const data = await api('/home/');
+    state.home = data;
+    renderHome();
+  } catch (err) {
+    console.error('Home:', err);
+    list.innerHTML = '<div class="empty-queue">Não deu pra carregar. Verifique o backend.</div>';
+  }
+}
+
+function renderHome() {
+  const list = document.getElementById('queueList');
+  if (!list) return;
+  const h = state.home || { em_alta: [], mais_ouvidas: [], playlists: [] };
+  const trending = (h.em_alta || []).map((s, i) => homeSongRow(s, i + 1, '🔥')).join('');
+  const frequent = (h.mais_ouvidas || []).map((s, i) => homeSongRow(s, i + 1, '🎧')).join('');
+  const playlists = (h.playlists || []).map(
+    (p, i) => `
+      <div class="track-row" onclick="openPlaylist(${p.id})" style="cursor:pointer">
+        <div class="track-pos" style="flex:0 0 34px;text-align:center;">${i + 1}</div>
+        <div class="track-meta">
+          <div class="track-title">${esc(p.name)}</div>
+          <div class="track-sub">${(p.songs_count || 0)} músicas</div>
+        </div>
+        <button class="mini-btn" style="pointer-events:none;opacity:0">☰</button>
+        <div class="track-sub" style="flex:0 0 auto;">📚</div>
+      </div>`
+  ).join('');
+  list.innerHTML =
+    sectionBlock('Em alta', '🔥', trending, 'Ouça algo agora!') +
+    sectionBlock('Mais ouvidas', '🎧', frequent, 'Nada ainda.') +
+    sectionBlock('Playlists populares', '📚', playlists, 'Crie uma playlist!');
+}
+
+function playHomeCard(videoId) {
+  const all = [
+    ...(state.home && state.home.em_alta || []),
+    ...(state.home && state.home.mais_ouvidas || []),
+  ];
+  const s = all.find((x) => x.video_id === videoId);
+  if (s) loadTrack(s);
 }
 
 async function search(query) {

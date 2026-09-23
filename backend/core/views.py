@@ -181,6 +181,63 @@ class FavoriteDeleteView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class HomeStatsView(APIView):
+    def get(self, request):
+        from collections import Counter
+        from core.models import Song, Playlist, HistoryEntry
+
+        user = request.user
+        result = {'em_alta': [], 'mais_ouvidas': [], 'playlists': []}
+
+        seen = set()
+        for h in (
+            HistoryEntry.objects.filter(user=user)
+            .select_related('song')
+            .order_by('-played_at')[:20]
+        ):
+            if h.song.video_id in seen:
+                continue
+            seen.add(h.song.video_id)
+            result['em_alta'].append(
+                SongSerializer(h.song).data
+            )
+            if len(result['em_alta']) >= 10:
+                break
+
+        counts = Counter(
+            HistoryEntry.objects.filter(user=user).values_list('song_id', flat=True)
+        )
+        top_ids = [sid for sid, _ in counts.most_common(12)]
+        songs_map = {s.id: s for s in Song.objects.filter(id__in=top_ids)}
+        for sid, _ in counts.most_common(12):
+            s = songs_map.get(sid)
+            if s:
+                result['mais_ouvidas'].append(SongSerializer(s).data)
+            if len(result['mais_ouvidas']) >= 10:
+                break
+
+        for p in (
+            Playlist.objects.filter(user=user)
+            .prefetch_related('songs__song')
+            .order_by('-created_at')
+        ):
+            result['playlists'].append(
+                {
+                    'id': p.id,
+                    'name': p.name,
+                    'description': p.description,
+                    'songs_count': p.songs.count(),
+                }
+            )
+        result['playlists'].sort(key=lambda x: x['songs_count'], reverse=True)
+        result['playlists'] = result['playlists'][:10]
+
+        return Response(result)
+
+
+class FavoriteDeleteViewEx(APIView):
+
+
 class PlaylistListView(APIView):
     def get(self, request):
         playlists = Playlist.objects.filter(user=request.user)

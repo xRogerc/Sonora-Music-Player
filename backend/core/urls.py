@@ -20,4 +20,5 @@ urlpatterns = [
     path('playlists/<int:pk>/songs/<int:song_id>/', views.PlaylistSongDeleteView.as_view()),
     path('history/', views.HistoryListView.as_view()),
     path('history/create/', views.HistoryCreateView.as_view()),
+    path('home/', views.HomeStatsView.as_view()),
 ]
