@@ -61,8 +61,39 @@ async function api(path, options = {}) {
   }
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error((data && data.detail) || 'Erro');
+  if (!response.ok) throw new Error(extractApiError(data));
   return data;
+}
+
+function extractApiError(data) {
+  if (!data) return 'Erro de conexão com o servidor. Tente de novo.';
+  if (typeof data.detail === 'string') return data.detail;
+  if (typeof data === 'object') {
+    for (const key of ['username', 'password']) {
+      if (data[key]) return apiErrorText(data[key]);
+    }
+    for (const key of Object.keys(data)) {
+      if (data[key]) return apiErrorText(data[key]);
+    }
+  }
+  return 'Erro inesperado. Tente de novo.';
+}
+
+function apiErrorText(value) {
+  if (Array.isArray(value)) {
+    const first = value[0];
+    if (typeof first === 'string') return localizeApiError(first);
+    if (first && typeof first === 'object' && first.message) return first.message;
+  }
+  if (typeof value === 'string') return localizeApiError(value);
+  return 'Erro inesperado. Tente de novo.';
+}
+
+function localizeApiError(msg) {
+  const map = {
+    'Ensure this field has at least 4 characters.': 'A senha precisa ter pelo menos 4 caracteres.',
+  };
+  return map[msg] || msg;
 }
 
 function songFields(song) {
@@ -133,11 +164,21 @@ function showAuthForm(mode) {
     const data = new FormData(e.target);
     setAuthError('');
     if (mode === 'register') {
+      const username = String(data.get('username') || '').trim();
+      const password = String(data.get('password') || '');
+      if (!username) {
+        setAuthError('Digite um nome de usuário.');
+        return;
+      }
+      if (password.length < 4) {
+        setAuthError('A senha precisa ter pelo menos 4 caracteres.');
+        return;
+      }
       api('/auth/register/', {
         method: 'POST',
-        body: JSON.stringify({ username: data.get('username'), password: data.get('password') }),
+        body: JSON.stringify({ username, password }),
       })
-        .then(() => doLoginFor(data.get('username'), data.get('password')))
+        .then(() => doLoginFor(username, password))
         .catch((err) => setAuthError(err.message));
     } else {
       doLoginFor(data.get('username'), data.get('password'));
