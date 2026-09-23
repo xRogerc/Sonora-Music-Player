@@ -17,6 +17,7 @@ const state = {
   playlists: [],
   playlistDetail: null,
   history: [],
+  userPaused: false,
   favStatus: new Map(),
   current: null,
   currentIndex: -1,
@@ -1021,8 +1022,13 @@ function togglePlay() {
   const items = activeQueue();
   if (!items.length) return;
   if (PLAYER.currentSrc && state.current) {
-    if (PLAYER.paused) PLAYER.play();
-    else PLAYER.pause();
+    if (PLAYER.paused || PLAYER.ended) {
+      state.userPaused = false;
+      PLAYER.play().catch((err) => console.error('Reprodução falhou:', err));
+    } else {
+      state.userPaused = true;
+      PLAYER.pause();
+    }
     return;
   }
   playIndex(0);
@@ -1149,12 +1155,47 @@ function bindNowPlaying() {
   });
 
   PLAYER.addEventListener('play', () => {
+    state.userPaused = false;
     playIcon.innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
     document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('playing'));
+  });
+  PLAYER.addEventListener('playing', () => {
+    state.userPaused = false;
+    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('playing'));
+  });
+  PLAYER.addEventListener('waiting', () => {
+    if (state.userPaused) return;
+    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('buffering'));
+  });
+  PLAYER.addEventListener('stalled', () => {
+    if (state.userPaused || !state.current) return;
+    if (PLAYER.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+      document.querySelectorAll('#visualizer span').forEach((s) => s.classList.remove('buffering'));
+      loadTrack(state.current);
+    }
   });
   PLAYER.addEventListener('pause', () => {
     playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
     document.querySelectorAll('#visualizer span').forEach((s) => s.classList.remove('playing'));
+  });
+  PLAYER.addEventListener('playing', () => {
+    document.querySelectorAll('#visualizer span').forEach((s) => s.classList.add('playing'));
+  });
+  PLAYER.addEventListener('stalled', () => {
+    if (!state.current || state.userPaused) return;
+    if (!PLAYER.paused && PLAYER.currentTime > 0 && isFinite(PLAYER.currentTime)) {
+      PLAYER.currentTime = PLAYER.currentTime;
+    }
+  });
+  PLAYER.addEventListener('waiting', () => {
+    if (!state.current || state.userPaused) return;
+    const retry = () => {
+      if (state.current && !state.userPaused && PLAYER.paused && !PLAYER.ended && PLAYER.currentSrc) {
+        PLAYER.play().catch((err) => console.error('Retomada automática falhou:', err));
+      }
+    };
+    if (PLAYER.currentTime === 0) setTimeout(retry, 1500);
+    else setTimeout(retry, 400);
   });
   PLAYER.addEventListener('timeupdate', () => {
     if (!PLAYER.duration) return;
